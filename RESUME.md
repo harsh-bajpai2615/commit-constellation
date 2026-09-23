@@ -16,7 +16,7 @@ the pre-flight checklist and the failure drills.
 
 ```bash
 cd ~/commit-constellation
-node warm.mjs                   # 7/7 warmed
+node warm.mjs                   # 6/6 warmed
 node server.mjs                 # http://localhost:4173
 ```
 

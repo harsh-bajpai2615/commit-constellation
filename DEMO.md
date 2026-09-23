@@ -7,7 +7,7 @@ written to be *under* it — the picture needs silence to land.
 
 ```bash
 cd ~/commit-constellation
-node warm.mjs          # 7/7 warmed; a cold clone on shared wifi is the one real risk
+node warm.mjs          # 6/6 warmed; a cold clone on shared wifi is the one real risk
 node server.mjs
 ```
 
