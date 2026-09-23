@@ -405,4 +405,12 @@ html, body {
   #caption, #intro { padding: 22px 18px 24px; }
   #observed { font-size: 10px; letter-spacing: .16em; }
   #intro .try { line-height: 2.1; }
+
+  /* Bottom-right belongs to the plate here -- the controls were sitting straight on top
+     of the caption text. The dial and key are hidden at this width, so the top-right
+     corner is free. */
+  #zoom {
+    top: 112px; right: 14px;
+    bottom: auto;
+  }
 }

@@ -640,7 +640,20 @@ function selectStar(i) {
   hovered = n
   const age = (millis() - state.t0) / 1000
   const drift = STILL ? 0 : 1
-  const at = toScreen(px(n, age, drift), py(n, age, drift))
+  let at = toScreen(px(n, age, drift), py(n, age, drift))
+
+  // Once zoomed in, the next star along is very often outside the viewport, and the old
+  // behaviour was to announce a file and point a tooltip at somewhere off-screen. Bring
+  // the selection into view instead. Set directly rather than through onViewChanged,
+  // which calls back into here.
+  const margin = 110
+  if (at.x < margin || at.x > width - margin || at.y < margin || at.y > height - margin) {
+    view.tx += width / 2 - at.x
+    view.ty += height / 2 - at.y
+    zoomReset.hidden = view.k === 1 && view.tx === 0 && view.ty === 0
+    at = toScreen(px(n, age, drift), py(n, age, drift))
+  }
+
   showTooltip(n, at.x, at.y)
 
   const s = n.star
