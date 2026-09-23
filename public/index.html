@@ -20,6 +20,11 @@
   <!-- Errors are only ever shown here, so they have to be announced too. -->
   <p id="status" role="status" aria-live="polite"></p>
 
+  <!-- Every repo plotted this session, one click away. The whole point of the piece is the
+       contrast between two skies, and retyping a name to get back to the previous one is
+       the slowest possible way to make that comparison. -->
+  <nav id="recent" hidden aria-label="Repositories plotted this session"></nav>
+
   <!-- Hovering a star was the only way to find out what it is, which left the whole
        picture unreachable without a mouse. This is the keyboard way in: it sits next in
        tab order after Plot, is invisible until focused, and then names itself. -->

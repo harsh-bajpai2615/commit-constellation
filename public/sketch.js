@@ -18,6 +18,7 @@ const dialLabel = el('dialLabel')
 const intro = el('intro')
 const skyFocus = el('skyFocus')
 const readout = el('readout')
+const recentEl = el('recent')
 
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -609,6 +610,35 @@ form.addEventListener('submit', async (e) => {
   await plot(src)
 })
 
+// Every repo plotted this session, most recent first. Four is enough to hold a comparison
+// without the row wrapping into the sky.
+const plotted = []
+
+function rememberPlot(src) {
+  const at = plotted.indexOf(src)
+  if (at !== -1) plotted.splice(at, 1)
+  plotted.unshift(src)
+  plotted.length = Math.min(plotted.length, 4)
+
+  recentEl.textContent = ''
+  for (const name of plotted) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.textContent = name
+    b.dataset.repo = name
+    if (name === src) b.setAttribute('aria-current', 'true')
+    recentEl.append(b)
+  }
+  recentEl.hidden = plotted.length < 2   // one chip is just a label for what is on screen
+}
+
+recentEl.addEventListener('click', (e) => {
+  const repo = e.target.closest('button')?.dataset.repo
+  if (!repo) return
+  srcInput.value = repo
+  plot(repo)
+})
+
 // The three example repos in the empty state.
 intro.addEventListener('click', (e) => {
   const repo = e.target.closest('button')?.dataset.repo
@@ -668,6 +698,7 @@ async function plot(src) {
     // handed to someone else. replaceState rather than pushState: plotting four repos in a
     // demo should not bury the page under four history entries.
     history.replaceState(null, '', `?src=${encodeURIComponent(src)}`)
+    rememberPlot(src)
     // Cased here rather than with text-transform, so the unit on the timing stays a
     // lowercase "s" instead of being shouted as "0.1S".
     statusEl.textContent = `${data.counts.commits.toLocaleString()} COMMITS · ${data.counts.authors} AUTHOR${data.counts.authors === 1 ? '' : 'S'} · ${(data.tookMs / 1000).toFixed(1)}s`

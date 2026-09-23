@@ -110,6 +110,29 @@ html, body {
 }
 #status.error { color: #e89a86; letter-spacing: .04em; font-size: 13px; }
 
+#recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 1px 0;
+  pointer-events: auto;   /* #chrome is pointer-events:none so the sky stays hoverable */
+}
+
+#recent button {
+  font: 11px/1 var(--mono);
+  letter-spacing: .1em;
+  padding: 6px 10px;
+  color: #b9b3a6;
+  background: rgba(14, 16, 24, .72);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color .3s var(--ease), color .3s var(--ease);
+}
+#recent button:hover { color: var(--paper); border-color: #3b4560; }
+#recent button[aria-current="true"] { color: var(--ember); border-color: #4a4334; }
+#recent button:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+
 /* Announced, never shown. */
 .sr-only {
   position: absolute;
