@@ -8,6 +8,18 @@ those files keep changing in the same commit.
 node server.mjs          # http://localhost:4173, no install step
 ```
 
+![expressjs/express rendered as a constellation: coloured clusters of stars joined by fine
+lines, a 24-hour dial reading 9am, and a caption reading "2,000 commits across 307
+files"](docs/express.png)
+
+Same tool, different working lives. `expressjs/express` above peaks at **9am**;
+`sveltejs/svelte` peaks at **1am**, with 42% of its commits after midnight. A 78-commit
+utility library is a figure you can take in at a glance:
+
+| `sveltejs/svelte` — 1am | `sindresorhus/slugify` — 78 commits |
+|---|---|
+| ![svelte, a dense blue cluster with the dial reading 1am](docs/svelte.png) | ![slugify, a dozen bright stars joined into a clear figure](docs/slugify.png) |
+
 ---
 
 ## What it is actually for
