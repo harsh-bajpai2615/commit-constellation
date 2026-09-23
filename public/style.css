@@ -163,6 +163,59 @@ html, body {
   pointer-events: none;
 }
 
+/* ---------------------------------------------------------------- the empty state */
+
+#intro {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 30px 26px 32px;
+  z-index: 2;
+  background: linear-gradient(to top, rgba(7,8,12,.96) 55%, rgba(7,8,12,0));
+}
+
+#introRule {
+  margin: 0 0 20px;
+  border-top: 1px solid var(--rule);
+}
+
+#intro h1 {
+  margin: 0 0 12px;
+  font-size: clamp(30px, 4.6vw, 62px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.012em;
+}
+
+#intro .lede {
+  margin: 0 0 16px;
+  max-width: 54ch;
+  font-size: clamp(16px, 1.55vw, 21px);
+  line-height: 1.45;
+  color: #c9c2b4;
+}
+
+#intro .try {
+  margin: 0;
+  font: 12px/1.9 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Type-in-the-box is the slow path. These are the same action, one click away. */
+#intro .try button {
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  color: var(--paper);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid #3a4152;
+  cursor: pointer;
+}
+#intro .try button:hover { color: var(--ember); border-bottom-color: var(--ember); }
+#intro .try button:focus-visible { outline: 1px solid var(--ember); outline-offset: 3px; }
+
 /* ---------------------------------------------------------------- the plate caption */
 
 #caption {
@@ -222,26 +275,37 @@ html, body {
 #tooltip b { font-weight: 600; color: var(--paper); }
 #tooltip span { color: var(--muted); }
 
-/* ---------------------------------------------------------------- arrival
+/* ---------------------------------------------------------------- no arrival animation
 
-   A rise on load. Deliberately with NO fill-mode and NO delay.
+   ⛔ Do not add an entrance animation to the chrome. This was tried twice and it produced
+   a blank page both times.
 
-   The first version used `both` and a stagger, which holds the from-keyframe (opacity 0)
-   until the animation *starts* -- and Safari defers CSS animations in a window that is not
-   visible. Load the page while the window is behind something and the animation never
-   starts, so the entire interface sits at opacity 0 forever: no input, no title, no
-   caption, just the canvas. Without a fill-mode the elements are visible by default and
-   the animation is pure enhancement, which is the only safe way round for something that
-   has to come up on a projector. */
+   Anything that animates from `opacity: 0` on load is a trap here, and removing the
+   fill-mode does not save it: once Safari has *started* the animation it owns the
+   property, and it throttles animations in a window that is not visible -- so the element
+   freezes at opacity 0 and stays there. The result is a page with no input, no button, no
+   caption and no error message, which looks exactly like a crash and is unusable. A user
+   who mistypes a repo name sees nothing at all.
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(9px); }
-  to   { opacity: 1; transform: none; }
-}
-
-#chrome, #caption, #key, #dialLabel { animation: rise .7s var(--ease); }
+   The sky already runs its own reveal on the canvas. That is the arrival; the instruments
+   around it just need to be there. */
 
 @media (prefers-reduced-motion: reduce) {
-  #chrome, #caption, #key, #dialLabel { animation: none; }
   #src, #form button { transition: none; }
+}
+
+/* ---------------------------------------------------------------- narrow
+
+   The instrument column has nowhere to go below this: the dial lands on the input and the
+   key lands on the sky. The sketch stops drawing the dial at the same breakpoint. A dial
+   you cannot read is worse than no dial. */
+
+@media (max-width: 759px) {
+  #key, #dialLabel { display: none; }
+  #chrome { padding: 16px 18px; }
+  #form { flex-wrap: wrap; }
+  #src { min-width: 0; }
+  #caption, #intro { padding: 22px 18px 24px; }
+  #observed { font-size: 10px; letter-spacing: .16em; }
+  #intro .try { line-height: 2.1; }
 }

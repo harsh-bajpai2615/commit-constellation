@@ -15,6 +15,7 @@ const tooltip = el('tooltip')
 const keyEl = el('key')
 const keyList = el('keyList')
 const dialLabel = el('dialLabel')
+const intro = el('intro')
 
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -113,7 +114,7 @@ function buildLayout(data, w, h) {
   for (const n of nodes) n.spike = n.r > spikeCut
 
   relax(nodes, links, Math.min(w, h))
-  fit(nodes, w - KEY_COLUMN, h)   // the instrument column is not canvas the sky can use
+  fit(nodes, w - (w < NARROW_AT ? 0 : KEY_COLUMN), h)   // the instrument column is not sky
   return { nodes, links, legend }
 }
 
@@ -234,10 +235,20 @@ function fit(nodes, w, h) {
   // how far apart two stars are.
   const stretch = Math.min(sx / scale, 1.5)
 
+  // Star radius is in absolute pixels, so a narrow window shrinks the sky and leaves the
+  // stars full size: they overlap, the additive glow saturates, and a 90-file repo renders
+  // as one white blob.
+  //
+  // Driven off the viewport, deliberately, not off `scale`. Tying it to `scale` also
+  // shrank the stars on a wide screen -- where nothing was wrong -- and drained the
+  // picture. 1 at the size this was designed at and below, never more.
+  const rScale = Math.max(0.45, Math.min(1, Math.min(w, h * 1.7) / 1100))
+
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
   for (const n of nodes) {
     n.x = (n.x - cx) * scale * stretch
     n.y = (n.y - cy) * scale
+    n.r *= rScale
   }
 }
 
@@ -327,7 +338,7 @@ function draw() {
 
   // The dial is drawn here because it is part of the plate; the key that explains the
   // colours is DOM, where it can be set in real type instead of canvas fallback glyphs.
-  drawClock(age)
+  if (!isNarrow()) drawClock(age)
 
   trackHover(age, drift)
 }
@@ -343,8 +354,14 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace'
 // The dial and the key occupy a column down the right edge. Centring the sky on the
 // viewport therefore centres it on nothing -- it leaves a dead third on the left and
 // crowds the instruments on the right. Offset it by half that column.
+// Below this the instrument column has nowhere to go: the dial lands on top of the input
+// and the key lands on top of the sky. Narrow means the picture only, which is the honest
+// degradation -- a dial you cannot read is worse than no dial.
+const NARROW_AT = 760
+const isNarrow = () => width < NARROW_AT
+
 const KEY_COLUMN = 156
-const skyX = () => width / 2 - KEY_COLUMN / 2
+const skyX = () => width / 2 - (isNarrow() ? 0 : KEY_COLUMN / 2)
 
 // The chrome is not symmetric -- the input and status line take the top, the plate caption
 // takes considerably more at the bottom -- so a sky centred on the viewport runs stars
@@ -519,6 +536,14 @@ form.addEventListener('submit', async (e) => {
   await plot(src)
 })
 
+// The three example repos in the empty state.
+intro.addEventListener('click', (e) => {
+  const repo = e.target.closest('button')?.dataset.repo
+  if (!repo) return
+  srcInput.value = repo
+  plot(repo)
+})
+
 async function plot(src) {
   const button = form.querySelector('button')
   button.disabled = true
@@ -546,7 +571,13 @@ async function plot(src) {
     el('observed').textContent = observedLine(data)
     renderKey(state.legend)
     dialLabel.hidden = false
+    intro.hidden = true
     caption.hidden = false
+
+    // Keep the address bar honest, so a reload redraws the same sky and the link can be
+    // handed to someone else. replaceState rather than pushState: plotting four repos in a
+    // demo should not bury the page under four history entries.
+    history.replaceState(null, '', `?src=${encodeURIComponent(src)}`)
     // Cased here rather than with text-transform, so the unit on the timing stays a
     // lowercase "s" instead of being shouted as "0.1S".
     statusEl.textContent = `${data.counts.commits.toLocaleString()} COMMITS · ${data.counts.authors} AUTHOR${data.counts.authors === 1 ? '' : 'S'} · ${(data.tookMs / 1000).toFixed(1)}s`

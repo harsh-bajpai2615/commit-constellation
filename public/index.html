@@ -27,6 +27,21 @@
   <ul id="keyList"></ul>
 </aside>
 
+<!-- Sits where the caption will sit, so plotting replaces it in place rather than moving
+     the eye somewhere new. An empty screen is an invitation to act, so it names the piece,
+     says what the picture means, and offers three repos you can plot without typing. -->
+<section id="intro">
+  <p id="introRule"></p>
+  <h1>Commit Constellation</h1>
+  <p class="lede">Every file is a star, sized by how often it changes. A line between two
+    stars means those files keep changing in the same commit.</p>
+  <p class="try">Start with
+    <button type="button" data-repo="expressjs/express">expressjs/express</button>,
+    <button type="button" data-repo="sveltejs/svelte">sveltejs/svelte</button> or
+    <button type="button" data-repo="sindresorhus/slugify">sindresorhus/slugify</button>
+  </p>
+</section>
+
 <footer id="caption" hidden>
   <p id="observed"></p>
   <h1 id="title"></h1>
