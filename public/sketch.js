@@ -19,6 +19,10 @@ const intro = el('intro')
 const skyFocus = el('skyFocus')
 const readout = el('readout')
 const recentEl = el('recent')
+const zoomBar = el('zoom')
+const zoomIn = el('zoomIn')
+const zoomOut = el('zoomOut')
+const zoomReset = el('zoomReset')
 
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -34,6 +38,26 @@ let hovered = null
 let bg = null           // pre-rendered backdrop, rebuilt per layout
 let focusIdx = null     // keyboard selection, an index into state.nodes
 let pointerMode = true  // whether the mouse or the keyboard is driving the highlight
+
+// Zoom and pan. The middle of a 90-file repo is genuinely crowded -- that is a true thing
+// about the repo, not a layout failure -- so there has to be a way in. `k` is the scale,
+// `tx`/`ty` the offset in screen pixels from the sky origin.
+const view = { k: 1, tx: 0, ty: 0 }
+const MIN_K = 0.5, MAX_K = 8
+let dragging = null      // { x, y } of the last pointer position while panning
+
+const resetView = () => { view.k = 1; view.tx = 0; view.ty = 0 }
+
+// Screen point -> the sky's own coordinates, and back. Everything that has to agree about
+// where a star *is* on screen goes through these two, so there is one place to be wrong.
+const toWorld = (sx, sy) => ({
+  x: (sx - skyX() - view.tx) / view.k,
+  y: (sy - skyY() - view.ty) / view.k,
+})
+const toScreen = (wx, wy) => ({
+  x: skyX() + view.tx + wx * view.k,
+  y: skyY() + view.ty + wy * view.k,
+})
 
 const DRAWN_LINKS = 46    // of up to 140 the server sends
 const SPIKE_STARS = 11
@@ -95,6 +119,17 @@ function buildLayout(data, w, h) {
     byDir.set(key, rec)
   }
   const legend = [...byDir.values()].sort((a, b) => b.count - a.count).slice(0, 6)
+
+  // A dozen stars all reading "index.js" name nothing. Where a basename repeats, qualify
+  // it with its parent directory; where it is unique, the bare name is less to read.
+  const seen = new Map()
+  for (const n of nodes) seen.set(n.star.label, (seen.get(n.star.label) || 0) + 1)
+  for (const n of nodes) {
+    const parent = n.star.dir.split('/').filter(Boolean).pop()
+    n.label = seen.get(n.star.label) > 1 && parent
+      ? `${parent}/${n.star.label}`
+      : n.star.label
+  }
 
   // Which lines actually get drawn. A star chart draws the few lines that make the figure,
   // not every relationship in the sky -- drawing all 140 edges at equal weight is precisely
@@ -265,12 +300,14 @@ function setup() {
   c.elt.id = 'sky'
   document.querySelectorAll('canvas').forEach((n, i) => { if (i === 0 && n.id !== 'sky') n.remove() })
   refreshBackdrop()
+  bindSky()
   noLoop()
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight)
   if (state) state = { ...state, ...buildLayout(state.data, width, height) }
+  resetView()   // the layout was re-fitted underneath, so the old pan means nothing now
   refreshBackdrop()
   // Every star has moved, so a tooltip pinned to the old position is now pointing at
   // nothing. Re-anchor it rather than leaving it stranded.
@@ -287,7 +324,8 @@ function draw() {
   const drift = STILL ? 0 : 1
 
   push()
-  translate(skyX(), skyY())
+  translate(skyX() + view.tx, skyY() + view.ty)
+  scale(view.k)
 
   // Everything from here is additive, so overlapping light accumulates instead of stacking
   // as flat translucent discs. That is the whole difference between a scatter plot of
@@ -310,13 +348,21 @@ function draw() {
     line(px(l.from, age, drift), py(l.from, age, drift), px(l.to, age, drift), py(l.to, age, drift))
   }
 
+  // The canvas is scaled by view.k, so a star's glow would grow linearly with the zoom and
+  // turn into a soft blob that hides exactly the detail you zoomed in to see. Damping by
+  // k^-0.45 leaves the drawn size still growing -- about k^0.55 on screen, so stars stay
+  // comparable to each other -- while the picture gets sharper rather than blurrier.
+  const rDamp = Math.pow(view.k, -0.45)
+  const labelled = []
+
   noStroke()
   for (const n of state.nodes) {
     const reveal = ease(clamp((age - n.born * 0.6) / 0.6))
     if (reveal <= 0) continue
     const x = px(n, age, drift), y = py(n, age, drift)
     const pulse = STILL ? 0 : Math.sin(age * 1.1 + n.twinkle) * 0.1
-    const r = n.r * reveal * (1 + pulse)
+    const r = n.r * reveal * (1 + pulse) * rDamp
+    if (view.k >= LABEL_K) labelled.push({ n, x, y, r })
     const [cr, cg, cb] = n.hue
     const boost = hovered === n ? 1.8 : 1
 
@@ -338,11 +384,17 @@ function draw() {
   blendMode(BLEND)
 
   if (hovered) {
-    noFill(); stroke(244, 241, 234, 165); strokeWeight(1.2)
-    circle(px(hovered, age, drift), py(hovered, age, drift), hovered.r * 4.4)
+    noFill(); stroke(244, 241, 234, 165); strokeWeight(1.2 / view.k)
+    circle(px(hovered, age, drift), py(hovered, age, drift), hovered.r * 4.4 * rDamp)
     noStroke()
   }
   pop()
+
+  // Zooming in has to show you something you could not see before, or it is just a bigger
+  // blur. Past LABEL_K every star names itself, so the crowded middle of a repo becomes
+  // readable without hunting for it with the mouse. Drawn after pop(), in screen space,
+  // so the type stays the same size and crisp however far in you are.
+  drawLabels(labelled)
 
   // The dial is drawn here because it is part of the plate; the key that explains the
   // colours is DOM, where it can be set in real type instead of canvas fallback glyphs.
@@ -358,6 +410,9 @@ const HOUR_LABEL = [
 
 const CLOCK_X = 118, CLOCK_Y = 124, CLOCK_INNER = 28, CLOCK_SPAN = 38
 const MONO = 'ui-monospace, "SF Mono", Menlo, monospace'
+
+// Past this zoom the stars name themselves.
+const LABEL_K = 2.2
 
 // The dial and the key occupy a column down the right edge. Centring the sky on the
 // viewport therefore centres it on nothing -- it leaves a dead third on the left and
@@ -482,6 +537,42 @@ function observedLine(data) {
   ].join('  ·  ')
 }
 
+function drawLabels(labelled) {
+  if (!labelled.length) return
+  push()
+  textFont(MONO)
+  textSize(11)
+  textAlign(CENTER, TOP)
+
+  // Biggest star wins a contested spot: if two labels would overlap, the more-changed file
+  // is the one worth naming. Unsorted, whichever happened to be drawn first won, which is
+  // an arbitrary answer to a question the reader cares about.
+  const placed = []
+  const order = [...labelled].sort((a, b) => b.n.r - a.n.r)
+
+  for (const { n, x, y, r } of order) {
+    const at = toScreen(x, y)
+    const w = textWidth(n.label) + 8
+    const bx = at.x - w / 2, by = at.y + r * view.k + 6
+
+    // Off-screen, or underneath the chrome or the plate -- a label there is unreadable and
+    // makes the interface look broken.
+    if (bx + w < 0 || bx > width || by + 15 < 0 || by > height) continue
+    if (by < TOP_INSET - 34) continue
+    if (by + 15 > height - BOTTOM_INSET + 52) continue
+
+    if (placed.some((q) => bx < q.x + q.w && bx + w > q.x && by < q.y + 16 && by + 16 > q.y)) continue
+    placed.push({ x: bx, y: by, w })
+
+    noStroke()
+    fill(8, 8, 11, 185)                       // just enough ground to sit the type on
+    rect(bx, by - 1, w, 15, 2)
+    fill(236, 230, 217, 228)
+    text(n.label, at.x, by)
+  }
+  pop()
+}
+
 // Four tapering spikes. Drawn as one flat-alpha line each they read as a crosshair
 // stamped on the star -- the taper is the entire difference between an artefact and light.
 function spikes(x, y, len, r, g, b, alpha) {
@@ -506,11 +597,14 @@ function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x }
 function ease(x) { return 1 - Math.pow(1 - x, 3) }
 
 function trackHover(age, drift) {
-  const mx = mouseX - skyX(), my = mouseY - skyY()
-  let best = null, bestD = 26
+  // Hit-test in the sky's coordinates, not the screen's, or the target drifts away from
+  // the star as soon as you zoom. The tolerance is divided by the scale for the same
+  // reason: 26 screen pixels is a different distance at 4x than at 1x.
+  const m = toWorld(mouseX, mouseY)
+  let best = null, bestD = 26 / view.k
   for (const n of state.nodes) {
-    const d = Math.hypot(px(n, age, drift) - mx, py(n, age, drift) - my)
-    if (d < Math.max(n.r * 1.6, 10) && d < bestD) { best = n; bestD = d }
+    const d = Math.hypot(px(n, age, drift) - m.x, py(n, age, drift) - m.y)
+    if (d < Math.max(n.r * 1.6, 10 / view.k) && d < bestD) { best = n; bestD = d }
   }
   if (best !== hovered) {
     hovered = best
@@ -546,7 +640,8 @@ function selectStar(i) {
   hovered = n
   const age = (millis() - state.t0) / 1000
   const drift = STILL ? 0 : 1
-  showTooltip(n, skyX() + px(n, age, drift), skyY() + py(n, age, drift))
+  const at = toScreen(px(n, age, drift), py(n, age, drift))
+  showTooltip(n, at.x, at.y)
 
   const s = n.star
   readout.textContent =
@@ -586,6 +681,15 @@ skyFocus.addEventListener('keydown', (e) => {
   } else if (e.key === 'End') {
     e.preventDefault()
     selectStar(state.nodes.length - 1)
+  } else if (e.key === '+' || e.key === '=') {
+    e.preventDefault()
+    zoomAt(width / 2, height / 2, 1.5)
+  } else if (e.key === '-' || e.key === '_') {
+    e.preventDefault()
+    zoomAt(width / 2, height / 2, 1 / 1.5)
+  } else if (e.key === '0') {
+    e.preventDefault()
+    resetView(); onViewChanged()
   } else if (e.key === 'Escape') {
     e.preventDefault()
     clearSelection()
@@ -596,6 +700,76 @@ skyFocus.addEventListener('keydown', (e) => {
 // Any real pointer movement hands control back to the mouse. Without this the per-frame
 // hover test would clear a keyboard selection on the very next frame.
 window.addEventListener('mousemove', () => { pointerMode = true }, { passive: true })
+
+// ---------------------------------------------------------------- zoom and pan
+
+// Zoom toward a point: whatever is under the cursor has to stay under the cursor, which is
+// the whole difference between zooming and merely scaling.
+function zoomAt(sx, sy, factor) {
+  const k0 = view.k
+  const k1 = Math.max(MIN_K, Math.min(MAX_K, k0 * factor))
+  if (k1 === k0) return
+  const w = toWorld(sx, sy)
+  view.k = k1
+  view.tx = sx - skyX() - w.x * k1
+  view.ty = sy - skyY() - w.y * k1
+  onViewChanged()
+}
+
+function onViewChanged() {
+  zoomOut.disabled = view.k <= MIN_K
+  zoomIn.disabled = view.k >= MAX_K
+  zoomReset.hidden = view.k === 1 && view.tx === 0 && view.ty === 0
+  // A tooltip pinned to a screen position is pointing at the wrong star the moment the
+  // view moves under it.
+  if (focusIdx !== null) selectStar(focusIdx)
+  redraw()
+}
+
+function bindSky() {
+  const c = document.getElementById('sky')
+  if (!c) return
+
+  // passive:false because the page must not scroll out from under the zoom.
+  c.addEventListener('wheel', (e) => {
+    if (!state) return
+    e.preventDefault()
+    // Trackpad pinch arrives as a wheel event with ctrlKey set, and much finer deltas.
+    const unit = e.ctrlKey ? 0.012 : 0.0022
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * unit))
+  }, { passive: false })
+
+  c.addEventListener('mousedown', (e) => {
+    if (!state || e.button !== 0) return
+    dragging = { x: e.clientX, y: e.clientY }
+    c.style.cursor = 'grabbing'
+  })
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return
+    view.tx += e.clientX - dragging.x
+    view.ty += e.clientY - dragging.y
+    dragging = { x: e.clientX, y: e.clientY }
+    onViewChanged()
+  })
+
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return
+    dragging = null
+    c.style.cursor = ''
+  })
+
+  c.addEventListener('dblclick', (e) => {
+    if (!state) return
+    e.preventDefault()
+    resetView()
+    onViewChanged()
+  })
+}
+
+zoomIn.addEventListener('click', () => zoomAt(width / 2, height / 2, 1.5))
+zoomOut.addEventListener('click', () => zoomAt(width / 2, height / 2, 1 / 1.5))
+zoomReset.addEventListener('click', () => { resetView(); onViewChanged() })
 
 function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -693,6 +867,9 @@ async function plot(src) {
     clearSelection()
     pointerMode = true
     skyFocus.tabIndex = 0
+    resetView()          // a new repo starts framed, not wherever the last one was left
+    zoomBar.hidden = false
+    onViewChanged()
 
     // Keep the address bar honest, so a reload redraws the same sky and the link can be
     // handed to someone else. replaceState rather than pushState: plotting four repos in a

@@ -64,6 +64,13 @@
   <p id="read"></p>
 </footer>
 
+<!-- Scroll and drag are invisible affordances. These say the sky moves. -->
+<div id="zoom" hidden>
+  <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+  <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+  <button type="button" id="zoomReset" aria-label="Reset the view" hidden>Reset</button>
+</div>
+
 <div id="tooltip" hidden></div>
 
 <!-- The tooltip is a positioned div a screen reader has no reason to visit, so the
