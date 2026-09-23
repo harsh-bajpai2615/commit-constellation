@@ -52,6 +52,9 @@ node server.mjs
 
 - **Sky is empty but the caption is there** — the tab was backgrounded mid-reveal and the
   browser dropped the animation frames. Reload, or add `&still=1` to skip the reveal.
+- **Nothing but the canvas — no input, no title, no caption** — that is the chrome stuck at
+  zero opacity, not a crash. It should not happen (the fill-mode was removed for exactly
+  this reason) but if it ever does, bring the window to the front and reload.
 - **A repo errors** — it is almost always the clone. Switch to a warmed tab and keep talking.
 - **Nothing clones** — every cached repo still works with the network off.
 

@@ -47,7 +47,13 @@ const server = createServer(async (req, res) => {
 
   try {
     const body = await readFile(file)
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream' })
+    res.writeHead(200, {
+      'content-type': TYPES[path.extname(file)] || 'application/octet-stream',
+      // No caching. Editing style.css and reloading has to actually show the edit --
+      // a stale stylesheet served from cache once cost an hour of chasing a bug that
+      // had already been fixed.
+      'cache-control': 'no-store',
+    })
     res.end(body)
   } catch (err) {
     res.writeHead(500, { 'content-type': 'text/plain' })

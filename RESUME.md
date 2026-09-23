@@ -117,10 +117,39 @@ between an artefact and light.
 **4. A backdrop seeded from the repo**, tinted by its own dominant directory colours, so
 every repo gets a sky of its own rather than the same wallpaper.
 
+**5. The page is a plate from a celestial atlas, not a dark-mode dashboard.** Two faces,
+each with one job: an engraved serif (Hoefler Text) for the thing being observed — the repo
+name, its one-line character — and a monospace for the instruments reading it: the dial,
+the key, the span line, the status. Nothing is set in a neutral UI sans, because this is a
+chart *of* something, not a control panel. The accent is the dial's peak-hour amber, and it
+is the only one, because it is data rather than decoration. The `OBSERVED 2012 – 2026` rule
+spans the whole plate the way a chart's frame does.
+
+The layout reserves the top for the input and the bottom for the caption (asymmetric, since
+the chrome is), and stretches the settled graph to fill a 16:9 frame instead of leaving a
+circular blob floating in dead side margins.
+
 Plus two readouts down the right edge: a **24-hour dial** (`hours[]` was in the payload
 from the first commit and nothing ever drew it — so "peak hour 1am", the single most
 quotable fact about a repo, lived only in the caption) and a **colour legend**, because
 the hues encode top-level directory and two minutes is not enough time to say that aloud.
+
+## ⛔ Never give the chrome an `animation-fill-mode`
+
+`#chrome`, `#caption`, `#key` and `#dialLabel` have a rise-on-load animation. It must stay
+**without a fill-mode and without a delay**.
+
+With `both`, the element holds the from-keyframe — `opacity: 0` — until the animation
+*starts*, and Safari defers CSS animations in a window that is not visible. Load the page
+while the window is behind something and the animation never starts, so the entire
+interface sits at zero opacity forever: no input, no title, no caption, nothing but the
+canvas. It looks exactly like a JS crash and it is not one. Without a fill-mode the chrome
+is visible by default and the animation is pure enhancement, which is the only safe way
+round for something that has to come up on a projector.
+
+The same evening this cost an extra half hour because Safari was serving a **cached
+`style.css`**, so the fix appeared not to work. `server.mjs` now sends `cache-control:
+no-store` on static files. Do not remove it.
 
 ## ⛔ Two things that were tried and do not work — do not retry them
 

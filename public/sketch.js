@@ -12,6 +12,9 @@ const srcInput = el('src')
 const statusEl = el('status')
 const caption = el('caption')
 const tooltip = el('tooltip')
+const keyEl = el('key')
+const keyList = el('keyList')
+const dialLabel = el('dialLabel')
 
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -110,7 +113,7 @@ function buildLayout(data, w, h) {
   for (const n of nodes) n.spike = n.r > spikeCut
 
   relax(nodes, links, Math.min(w, h))
-  fit(nodes, w, h)
+  fit(nodes, w - KEY_COLUMN, h)   // the instrument column is not canvas the sky can use
   return { nodes, links, legend }
 }
 
@@ -221,14 +224,19 @@ function fit(nodes, w, h) {
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const scale = Math.min(
-    (w - pad * 2) / Math.max(maxX - minX, 1),
-    (h - pad * 2.4) / Math.max(maxY - minY, 1),
-    2.8,
-  )
+  const sx = (w - pad * 2) / Math.max(maxX - minX, 1)
+  const sy = (skyH(h) - pad * 0.7) / Math.max(maxY - minY, 1)
+  const scale = Math.min(sx, sy, 2.8)
+
+  // The relaxation is isotropic, so it settles into a roughly circular blob -- which on a
+  // 16:9 projector floats in the middle with dead margins either side. Stretch the axis
+  // that has room left over. Capped, because past about 1.5 the springs visibly lie about
+  // how far apart two stars are.
+  const stretch = Math.min(sx / scale, 1.5)
+
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
   for (const n of nodes) {
-    n.x = (n.x - cx) * scale
+    n.x = (n.x - cx) * scale * stretch
     n.y = (n.y - cy) * scale
   }
 }
@@ -260,7 +268,7 @@ function draw() {
   const drift = STILL ? 0 : 1
 
   push()
-  translate(width / 2, height / 2)
+  translate(skyX(), skyY())
 
   // Everything from here is additive, so overlapping light accumulates instead of stacking
   // as flat translucent discs. That is the whole difference between a scatter plot of
@@ -317,9 +325,9 @@ function draw() {
   }
   pop()
 
-  // Both readouts live in screen space, stacked down the right edge, clear of the caption.
+  // The dial is drawn here because it is part of the plate; the key that explains the
+  // colours is DOM, where it can be set in real type instead of canvas fallback glyphs.
   drawClock(age)
-  drawLegend(age)
 
   trackHover(age, drift)
 }
@@ -329,7 +337,22 @@ const HOUR_LABEL = [
   '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm', '7pm', '8pm', '9pm', '10pm', '11pm',
 ]
 
-const CLOCK_X = 112, CLOCK_Y = 112, CLOCK_INNER = 30, CLOCK_SPAN = 40
+const CLOCK_X = 118, CLOCK_Y = 124, CLOCK_INNER = 28, CLOCK_SPAN = 38
+const MONO = 'ui-monospace, "SF Mono", Menlo, monospace'
+
+// The dial and the key occupy a column down the right edge. Centring the sky on the
+// viewport therefore centres it on nothing -- it leaves a dead third on the left and
+// crowds the instruments on the right. Offset it by half that column.
+const KEY_COLUMN = 156
+const skyX = () => width / 2 - KEY_COLUMN / 2
+
+// The chrome is not symmetric -- the input and status line take the top, the plate caption
+// takes considerably more at the bottom -- so a sky centred on the viewport runs stars
+// through both. Reserve each edge for what is actually there and centre on what is left.
+const TOP_INSET = 150
+const BOTTOM_INSET = 240
+const skyH = (h) => h - TOP_INSET - BOTTOM_INSET
+const skyY = () => TOP_INSET + skyH(height) / 2
 
 // The 24-hour ring: when this repo is actually written. `hours` has been in the payload
 // from the first commit and nothing ever drew it, so the most quotable fact about a repo
@@ -372,46 +395,66 @@ function drawClock(age) {
     line(Math.cos(a) * CLOCK_INNER, Math.sin(a) * CLOCK_INNER, Math.cos(a) * len, Math.sin(a) * len)
   }
 
-  noStroke()
-  textSize(11)
-  fill(244, 241, 234, reveal * 140)
-  textAlign(CENTER, CENTER); text('12a', 0, -(outer + 13))
-  textAlign(CENTER, CENTER); text('12p', 0, outer + 13)
-  textAlign(LEFT, CENTER); text('6a', outer + 9, 0)
-  textAlign(RIGHT, CENTER); text('6p', -(outer + 9), 0)
+  // Outer bezel and cardinal ticks. An instrument has a rim; without one the bars read as
+  // a loose sunburst rather than as a reading taken off a dial.
+  stroke(236, 230, 217, reveal * 34)
+  strokeWeight(1)
+  circle(0, 0, (outer + 11) * 2)
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 - Math.PI / 2
+    const long = i % 6 === 0
+    stroke(236, 230, 217, reveal * (long ? 96 : 34))
+    const t0 = outer + 11, t1 = outer + (long ? 19 : 15)
+    line(Math.cos(a) * t0, Math.sin(a) * t0, Math.cos(a) * t1, Math.sin(a) * t1)
+  }
 
-  // The peak hour sits in the middle of its own dial.
-  textSize(14)
+  noStroke()
+  textFont(MONO)
+  textSize(10)
+  fill(236, 230, 217, reveal * 125)
+  textAlign(CENTER, CENTER); text('12a', 0, -(outer + 27))
+  textAlign(CENTER, CENTER); text('12p', 0, outer + 27)
+  textAlign(LEFT, CENTER);   text('6a', outer + 21, 0)
+  textAlign(RIGHT, CENTER);  text('6p', -(outer + 21), 0)
+
+  // The peak hour sits in the middle of its own dial -- the one number the room reads.
+  textSize(15)
   textAlign(CENTER, CENTER)
-  fill(255, 236, 190, reveal * 235)
+  fill(232, 196, 137, reveal * 245)
   text(HOUR_LABEL[peak], 0, 0)
   pop()
 }
 
 // Colour -> top-level directory, biggest first. Six at most: past that it is a wall of
 // text competing with the thing it is supposed to explain.
-function drawLegend(age) {
-  const items = state.legend
-  if (!items || !items.length) return
-
-  const reveal = ease(clamp((age - 1.35) / 0.8))
-  if (reveal <= 0) return
-
-  const rowH = 21
-  const x = width - 26
-  let y = CLOCK_Y + CLOCK_INNER + CLOCK_SPAN + 62
-
-  noStroke()
-  textSize(13)
-  textAlign(RIGHT, CENTER)
-  for (const it of items) {
-    fill(244, 241, 234, reveal * 155)
-    text(it.name, x - 17, y)
-    const [r, g, b] = it.hue
-    fill(r, g, b, reveal * 240)
-    circle(x - 6, y, 9)
-    y += rowH
+function renderKey(legend) {
+  keyList.textContent = ''
+  for (const it of legend) {
+    const li = document.createElement('li')
+    const swatch = document.createElement('i')
+    swatch.style.color = `rgb(${it.hue[0]},${it.hue[1]},${it.hue[2]})`
+    li.textContent = it.name
+    li.append(swatch)
+    keyList.append(li)
   }
+  keyEl.hidden = legend.length === 0
+}
+
+// The observation record above the title: where this history starts and ends, and how many
+// hands are in it. Deliberately not the peak hour -- the dial states that, and saying it
+// twice is how a page stops looking considered.
+function observedLine(data) {
+  const year = (iso) => new Date(iso).getFullYear()
+  const from = year(data.span.first), to = year(data.span.last)
+  const authors = data.counts.authors
+  // "Observed" because the log is capped at 2,000 commits: for a long-lived repo this is
+  // the window we sampled, not the year the project began. Svelte reading "2024 – 2026"
+  // without that word is a sentence that lies.
+  return [
+    `Observed ${from === to ? from : `${from} – ${to}`}`,
+    `${authors.toLocaleString()} author${authors === 1 ? '' : 's'}`,
+    `${data.span.days.toLocaleString()} days`,
+  ].join('  ·  ')
 }
 
 // Four tapering spikes. Drawn as one flat-alpha line each they read as a crosshair
@@ -438,7 +481,7 @@ function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x }
 function ease(x) { return 1 - Math.pow(1 - x, 3) }
 
 function trackHover(age, drift) {
-  const mx = mouseX - width / 2, my = mouseY - height / 2
+  const mx = mouseX - skyX(), my = mouseY - skyY()
   let best = null, bestD = 26
   for (const n of state.nodes) {
     const d = Math.hypot(px(n, age, drift) - mx, py(n, age, drift) - my)
@@ -480,7 +523,7 @@ async function plot(src) {
   const button = form.querySelector('button')
   button.disabled = true
   statusEl.className = ''
-  statusEl.textContent = 'Reading history…'
+  statusEl.textContent = 'READING HISTORY…'
   caption.hidden = true
 
   try {
@@ -500,8 +543,13 @@ async function plot(src) {
 
     el('title').textContent = data.name
     el('read').textContent = data.read
+    el('observed').textContent = observedLine(data)
+    renderKey(state.legend)
+    dialLabel.hidden = false
     caption.hidden = false
-    statusEl.textContent = `${data.counts.commits.toLocaleString()} commits · ${data.counts.authors} author${data.counts.authors === 1 ? '' : 's'} · ${(data.tookMs / 1000).toFixed(1)}s`
+    // Cased here rather than with text-transform, so the unit on the timing stays a
+    // lowercase "s" instead of being shouted as "0.1S".
+    statusEl.textContent = `${data.counts.commits.toLocaleString()} COMMITS · ${data.counts.authors} AUTHOR${data.counts.authors === 1 ? '' : 'S'} · ${(data.tookMs / 1000).toFixed(1)}s`
     loop()
   } catch (err) {
     statusEl.className = 'error'

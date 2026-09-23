@@ -18,7 +18,17 @@
   <p id="status"></p>
 </header>
 
+<!-- The dial is drawn on the canvas; this names it, because an unlabelled instrument is
+     decoration. The key is DOM rather than canvas so it gets real type. -->
+<p id="dialLabel" hidden>Commits by hour</p>
+
+<aside id="key" hidden>
+  <h2>Directories</h2>
+  <ul id="keyList"></ul>
+</aside>
+
 <footer id="caption" hidden>
+  <p id="observed"></p>
   <h1 id="title"></h1>
   <p id="read"></p>
 </footer>
