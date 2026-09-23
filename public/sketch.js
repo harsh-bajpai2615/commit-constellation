@@ -22,8 +22,14 @@ const HUES = [
   [172, 130, 205], [ 96, 186, 196], [212, 124, 168], [150, 158, 174],
 ]
 
-let state = null   // { nodes, links, data, t0 }
+let state = null   // { nodes, links, legend, data, t0 }
 let hovered = null
+let bg = null      // pre-rendered backdrop, rebuilt per layout
+
+const DRAWN_LINKS = 46    // of up to 140 the server sends
+const SPIKE_STARS = 11
+const NEBULA_STEPS = 26
+const FAR_STARS = 430
 
 // ---------------------------------------------------------------- seeded randomness
 
@@ -70,9 +76,80 @@ function buildLayout(data, w, h) {
   const maxWeight = Math.max(...links.map((l) => l.weight), 1)
   for (const l of links) l.strength = l.weight / maxWeight
 
+  // The colours encode top-level directory, which is invisible to a room nobody has told.
+  // Two minutes is not enough time to say it out loud, so the picture says it instead.
+  const byDir = new Map()
+  for (const n of nodes) {
+    const key = n.star.dir.split('/')[0] || '.'
+    const rec = byDir.get(key) || { name: key === '.' ? 'root' : key, count: 0, hue: n.hue }
+    rec.count += 1
+    byDir.set(key, rec)
+  }
+  const legend = [...byDir.values()].sort((a, b) => b.count - a.count).slice(0, 6)
+
+  // Which lines actually get drawn. A star chart draws the few lines that make the figure,
+  // not every relationship in the sky -- drawing all 140 edges at equal weight is precisely
+  // what made this read as a graph viewer rather than as a constellation. Ranking by
+  // confidence rather than raw count keeps a quiet pair that always moves together over a
+  // hot pair that merely overlaps a lot.
+  // Budgeted against the number of stars, not fixed. A 16-file repo has so few possible
+  // pairs that a flat budget of 46 draws nearly all of them, and the picture collapses
+  // back into the web this is trying not to be.
+  const budget = Math.max(6, Math.min(DRAWN_LINKS, Math.round(nodes.length * 0.55)))
+  const ranked = [...links].sort((a, b) => b.confidence - a.confidence).slice(0, budget)
+  const hi = ranked[0]?.confidence ?? 1
+  const lo = ranked[ranked.length - 1]?.confidence ?? 0
+  for (const l of ranked) {
+    l.drawn = true
+    l.heat = hi > lo ? (l.confidence - lo) / (hi - lo) : 1
+  }
+
+  // Diffraction spikes go on the brightest handful only. On every star the sky turns into
+  // a pincushion and the size ranking stops being readable.
+  const spikeCut = [...nodes].sort((a, b) => b.r - a.r)[SPIKE_STARS]?.r ?? Infinity
+  for (const n of nodes) n.spike = n.r > spikeCut
+
   relax(nodes, links, Math.min(w, h))
   fit(nodes, w, h)
-  return { nodes, links }
+  return { nodes, links, legend }
+}
+
+// A backdrop rendered once per layout and blitted each frame: a nebula tinted by this
+// repo's own dominant colours and seeded from its own history, so every repo gets a sky of
+// its own instead of the same wallpaper, plus the field of far stars that stops 90 dots
+// from floating on flat black.
+function buildBackdrop(seed, hues, w, h) {
+  const g = createGraphics(w, h)
+  const rand = rng((seed ^ 0x9e3779b9) >>> 0)
+  g.background(8, 8, 11)
+  g.noStroke()
+
+  const tints = hues.length ? hues : [[70, 86, 140]]
+  for (let b = 0; b < 3; b++) {
+    const cx = (0.15 + rand() * 0.7) * w
+    const cy = (0.15 + rand() * 0.7) * h
+    const R = (0.34 + rand() * 0.34) * Math.max(w, h)
+    const [r, gg, bb] = tints[b % tints.length]
+    // p5 has no radial gradient, so stack shrinking discs at very low alpha. The
+    // accumulation *is* the falloff.
+    for (let i = NEBULA_STEPS; i > 0; i--) {
+      g.fill(r, gg, bb, 2.2)
+      g.circle(cx, cy, (R * i) / NEBULA_STEPS)
+    }
+  }
+
+  for (let i = 0; i < FAR_STARS; i++) {
+    g.fill(226, 232, 245, 8 + rand() * 62)
+    const big = rand() > 0.93
+    g.circle(rand() * w, rand() * h, big ? 1.8 + rand() * 1.3 : 0.8 + rand() * 1.1)
+  }
+  return g
+}
+
+function refreshBackdrop() {
+  const seed = state ? state.data.seed : 20260923
+  const hues = state ? state.legend.map((l) => l.hue) : [[64, 80, 132], [96, 112, 168]]
+  bg = buildBackdrop(seed, hues, width, height)
 }
 
 // Spring layout with a cooling schedule.
@@ -163,33 +240,46 @@ function setup() {
   c.parent(document.body)
   c.elt.id = 'sky'
   document.querySelectorAll('canvas').forEach((n, i) => { if (i === 0 && n.id !== 'sky') n.remove() })
+  refreshBackdrop()
   noLoop()
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight)
-  if (state) {
-    state = { ...state, ...buildLayout(state.data, width, height) }
-    redraw()
-  }
+  if (state) state = { ...state, ...buildLayout(state.data, width, height) }
+  refreshBackdrop()
+  redraw()
 }
 
 function draw() {
-  background(10, 10, 12)
-  if (!state) return drawIdle()
-
-  translate(width / 2, height / 2)
+  if (bg) image(bg, 0, 0)
+  else background(8, 8, 11)
+  if (!state) return
 
   const age = (millis() - state.t0) / 1000
   const drift = STILL ? 0 : 1
 
-  // Links first, so stars sit on top of them.
+  push()
+  translate(width / 2, height / 2)
+
+  // Everything from here is additive, so overlapping light accumulates instead of stacking
+  // as flat translucent discs. That is the whole difference between a scatter plot of
+  // circles and a sky -- and it is what lets a one-pixel line still read as starlight.
+  blendMode(ADD)
+
+  // Constellation lines: few, thin, and the colour of starlight rather than of the folder
+  // they came from. Tinting them by directory was half of why this read as a graph.
+  strokeCap(ROUND)
   for (const l of state.links) {
+    if (!l.drawn) continue
     const reveal = ease(clamp((age - 0.55 - l.from.born * 0.5) / 0.7))
     if (reveal <= 0) continue
-    const [r, g, b] = l.from.hue
-    strokeWeight(0.8 + l.strength * 2.4)
-    stroke(r, g, b, reveal * (58 + l.strength * 150))
+    // Twice: a wide dim pass for the halo, a tight bright one for the filament.
+    stroke(150, 176, 230, reveal * (14 + l.heat * 40))
+    strokeWeight(2.2 + l.heat * 3.4)
+    line(px(l.from, age, drift), py(l.from, age, drift), px(l.to, age, drift), py(l.to, age, drift))
+    stroke(206, 222, 250, reveal * (52 + l.heat * 150))
+    strokeWeight(0.55 + l.heat * 1.15)
     line(px(l.from, age, drift), py(l.from, age, drift), px(l.to, age, drift), py(l.to, age, drift))
   }
 
@@ -198,24 +288,146 @@ function draw() {
     const reveal = ease(clamp((age - n.born * 0.6) / 0.6))
     if (reveal <= 0) continue
     const x = px(n, age, drift), y = py(n, age, drift)
-    const pulse = STILL ? 0 : Math.sin(age * 1.1 + n.twinkle) * 0.12
+    const pulse = STILL ? 0 : Math.sin(age * 1.1 + n.twinkle) * 0.1
     const r = n.r * reveal * (1 + pulse)
     const [cr, cg, cb] = n.hue
-    const lit = hovered === n
+    const boost = hovered === n ? 1.8 : 1
 
-    // Halo, then core. Two passes is cheaper and softer than a real blur.
-    fill(cr, cg, cb, reveal * (lit ? 70 : 34))
-    circle(x, y, r * 3.4)
-    fill(cr, cg, cb, reveal * (lit ? 255 : 210))
-    circle(x, y, r * 2)
-    if (lit) {
-      stroke(244, 241, 234, 200); strokeWeight(1.5); noFill()
-      circle(x, y, r * 3.6)
+    // Three falloff passes. One halo reads as a ring; three read as glow.
+    fill(cr, cg, cb, reveal * 9 * boost);  circle(x, y, r * 7.4)
+    fill(cr, cg, cb, reveal * 19 * boost); circle(x, y, r * 4.2)
+    fill(cr, cg, cb, reveal * 44 * boost); circle(x, y, r * 2.6)
+
+    if (n.spike) {
+      const len = r * (2.4 + (STILL ? 0 : Math.sin(age * 0.8 + n.twinkle) * 0.22))
+      spikes(x, y, len, cr, cg, cb, reveal * 66 * boost)
       noStroke()
     }
+
+    // Coloured body, then a white-hot centre: a real star is never a flat coloured disc.
+    fill(cr, cg, cb, reveal * 225 * boost); circle(x, y, r * 1.5)
+    fill(248, 250, 255, reveal * 185 * boost); circle(x, y, r * 0.72)
   }
+  blendMode(BLEND)
+
+  if (hovered) {
+    noFill(); stroke(244, 241, 234, 165); strokeWeight(1.2)
+    circle(px(hovered, age, drift), py(hovered, age, drift), hovered.r * 4.4)
+    noStroke()
+  }
+  pop()
+
+  // Both readouts live in screen space, stacked down the right edge, clear of the caption.
+  drawClock(age)
+  drawLegend(age)
 
   trackHover(age, drift)
+}
+
+const HOUR_LABEL = [
+  '12am', '1am', '2am', '3am', '4am', '5am', '6am', '7am', '8am', '9am', '10am', '11am',
+  '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm', '7pm', '8pm', '9pm', '10pm', '11pm',
+]
+
+const CLOCK_X = 112, CLOCK_Y = 112, CLOCK_INNER = 30, CLOCK_SPAN = 40
+
+// The 24-hour ring: when this repo is actually written. `hours` has been in the payload
+// from the first commit and nothing ever drew it, so the most quotable fact about a repo
+// -- svelte spiking at 1am against express at 9am -- lived only in the sentence at the
+// bottom. Same tool, two different skies is the demo; this is what makes it a *picture*.
+function drawClock(age) {
+  const h = state.data.hours
+  const max = Math.max(...h)
+  if (!max) return
+
+  const reveal = ease(clamp((age - 1.1) / 0.8))
+  if (reveal <= 0) return
+
+  const peak = h.indexOf(max)
+  const outer = CLOCK_INNER + CLOCK_SPAN
+
+  push()
+  translate(width - CLOCK_X, CLOCK_Y)
+
+  // A dim disc underneath, so the dial stays readable if a star happens to settle here.
+  noStroke()
+  fill(10, 10, 12, reveal * 175)
+  circle(0, 0, (outer + 24) * 2)
+
+  // Faint inner dial, so an hour with no commits still reads as an hour.
+  noFill()
+  stroke(244, 241, 234, reveal * 28)
+  strokeWeight(1)
+  circle(0, 0, CLOCK_INNER * 2)
+
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 - Math.PI / 2   // midnight at the top, running clockwise
+    const len = CLOCK_INNER + (h[i] / max) * CLOCK_SPAN * reveal
+    const night = i >= 23 || i < 5                   // the hours the caption calls "after midnight"
+    const lit = i === peak
+    strokeWeight(lit ? 4.5 : 3)
+    if (lit) stroke(255, 236, 190, reveal * 255)
+    else if (night) stroke(126, 154, 214, reveal * 195)
+    else stroke(244, 241, 234, reveal * 105)
+    line(Math.cos(a) * CLOCK_INNER, Math.sin(a) * CLOCK_INNER, Math.cos(a) * len, Math.sin(a) * len)
+  }
+
+  noStroke()
+  textSize(11)
+  fill(244, 241, 234, reveal * 140)
+  textAlign(CENTER, CENTER); text('12a', 0, -(outer + 13))
+  textAlign(CENTER, CENTER); text('12p', 0, outer + 13)
+  textAlign(LEFT, CENTER); text('6a', outer + 9, 0)
+  textAlign(RIGHT, CENTER); text('6p', -(outer + 9), 0)
+
+  // The peak hour sits in the middle of its own dial.
+  textSize(14)
+  textAlign(CENTER, CENTER)
+  fill(255, 236, 190, reveal * 235)
+  text(HOUR_LABEL[peak], 0, 0)
+  pop()
+}
+
+// Colour -> top-level directory, biggest first. Six at most: past that it is a wall of
+// text competing with the thing it is supposed to explain.
+function drawLegend(age) {
+  const items = state.legend
+  if (!items || !items.length) return
+
+  const reveal = ease(clamp((age - 1.35) / 0.8))
+  if (reveal <= 0) return
+
+  const rowH = 21
+  const x = width - 26
+  let y = CLOCK_Y + CLOCK_INNER + CLOCK_SPAN + 62
+
+  noStroke()
+  textSize(13)
+  textAlign(RIGHT, CENTER)
+  for (const it of items) {
+    fill(244, 241, 234, reveal * 155)
+    text(it.name, x - 17, y)
+    const [r, g, b] = it.hue
+    fill(r, g, b, reveal * 240)
+    circle(x - 6, y, 9)
+    y += rowH
+  }
+}
+
+// Four tapering spikes. Drawn as one flat-alpha line each they read as a crosshair
+// stamped on the star -- the taper is the entire difference between an artefact and light.
+function spikes(x, y, len, r, g, b, alpha) {
+  const STEPS = 9
+  strokeWeight(1)
+  for (let i = 0; i < STEPS; i++) {
+    const t0 = i / STEPS, t1 = (i + 1) / STEPS
+    // Falls off fast, so the spike is bright at the core and gone by the tip.
+    stroke(r, g, b, alpha * (1 - t0) * (1 - t0))
+    line(x + len * t0, y, x + len * t1, y)
+    line(x - len * t0, y, x - len * t1, y)
+    line(x, y + len * t0, x, y + len * t1)
+    line(x, y - len * t0, x, y - len * t1)
+  }
 }
 
 // Slow noise drift, so the sky breathes instead of sitting dead on the screen.
@@ -224,18 +436,6 @@ function py(n, age, drift) { return n.y + (drift ? Math.cos(age * 0.19 + n.twink
 
 function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x }
 function ease(x) { return 1 - Math.pow(1 - x, 3) }
-
-function drawIdle() {
-  // A quiet scatter before anything is loaded, so the first screen is never empty.
-  const rand = rng(20260923)
-  noStroke()
-  for (let i = 0; i < 140; i++) {
-    const x = rand() * width, y = rand() * height
-    const a = 12 + rand() * 45
-    fill(244, 241, 234, a)
-    circle(x, y, 1 + rand() * 2)
-  }
-}
 
 function trackHover(age, drift) {
   const mx = mouseX - width / 2, my = mouseY - height / 2
@@ -288,9 +488,15 @@ async function plot(src) {
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Could not read that repo.')
 
-    state = { data, ...buildLayout(data, width, height), t0: millis() }
+    // `?still=1` back-dates the clock so everything is already revealed on the first frame.
+    // A backgrounded tab gets its animation frames thrown away by the browser, so a
+    // screenshot of one taken mid-reveal is a picture of an empty sky -- which is how the
+    // docs/ shots get regenerated without babysitting a window.
+    const born = STILL || new URLSearchParams(location.search).has('still') ? -9000 : 0
+    state = { data, ...buildLayout(data, width, height), t0: millis() + born }
     hovered = null
     tooltip.hidden = true
+    refreshBackdrop()   // the sky is tinted by this repo, so it changes with the repo
 
     el('title').textContent = data.name
     el('read').textContent = data.read

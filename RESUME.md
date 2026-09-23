@@ -11,27 +11,24 @@ Built for the **Mumbai Claude Fable 5.1 Build Day**, 23 Sep 2026 — *Delight* t
 
 ## ⏭ PICK UP HERE
 
-The scaffold is **done and verified**. Everything below already works; the build-day
-work is the one item in *Next*.
+**Done and verified, including the visuals.** Read `DEMO.md` — it has the 2-minute beat,
+the pre-flight checklist and the failure drills.
 
 ```bash
 cd ~/commit-constellation
+node warm.mjs                   # 7/7 warmed
 node server.mjs                 # http://localhost:4173
 ```
 
 Type `expressjs/express`, or `sveltejs/svelte`, or a path like `~/cliptrip-backend`.
+`?still=1` renders the settled sky in one frame, skipping the reveal — that is how the
+`docs/` shots are regenerated, because a backgrounded tab loses its animation frames and
+photographs as an empty sky.
 
-**Next (this is the four hours at the venue):** the caption under the picture is
-currently written by `lib/read.mjs`, a hand-rolled template that picks the two
-strongest facts and stitches them into a sentence. It is honest but flat —
-*"2,000 commits across 307 files — half of it from a single pair of hands."*
-
-Replace it with a Claude call that gets the same `traits` object and writes a real
-sentence about the repo's character. Keep `lib/read.mjs` as the offline fallback and
-fall back to it on any API error, because the venue wifi will be shared by 80 people
-and a dead caption mid-demo is worse than a flat one.
-
-That is also what the $100 in API credits is for.
+**The Claude-caption plan is dead: there is no API key.** The $100 of Build Day credits
+were only ever *hedged* ("we're working to get every attendee $100") and never arrived,
+and there is no `ANTHROPIC_API_KEY` on this machine. `lib/read.mjs` writes the caption
+from a template and that is now the shipped behaviour, not a placeholder.
 
 ---
 
@@ -95,7 +92,55 @@ package.json"*. True, and useless.
 
 `docs/` holds screenshots of the working render (express, svelte, slugify) — compare
 against these after any change to the layout or the palette, because this is the class of
-bug that does not show up in the API response.
+bug that does not show up in the API response. Regenerate with `?src=...&still=1`.
+
+## The visual system — and why it is not a graph viewer
+
+The first version drew all 140 co-change edges at equal weight, tinted by directory, with
+flat circles for stars. The fair criticism of that picture is that it is Obsidian's graph
+view. Four changes, in order of how much they mattered:
+
+**1. Draw the few lines that make the figure.** A star chart does not draw every
+relationship in the sky. Only the top links by *confidence* are drawn — and the budget
+scales with the number of stars (`nodes.length * 0.55`, capped at 46), because a flat
+budget on a 16-file repo draws nearly every possible pair and collapses straight back into
+a web. Lines are the colour of starlight, not of the folder they came from.
+
+**2. Additive blending.** Stars are three falloff passes plus a white-hot core, drawn in
+`ADD`, so overlapping glow accumulates into light instead of stacking as flat translucent
+discs. This is most of the difference between a scatter plot and a sky.
+
+**3. Tapered diffraction spikes**, on the eleven brightest only. Drawn as one flat-alpha
+line each they read as a crosshair stamped on the star; the taper is the whole difference
+between an artefact and light.
+
+**4. A backdrop seeded from the repo**, tinted by its own dominant directory colours, so
+every repo gets a sky of its own rather than the same wallpaper.
+
+Plus two readouts down the right edge: a **24-hour dial** (`hours[]` was in the payload
+from the first commit and nothing ever drew it — so "peak hour 1am", the single most
+quotable fact about a repo, lived only in the caption) and a **colour legend**, because
+the hues encode top-level directory and two minutes is not enough time to say that aloud.
+
+## ⛔ Two things that were tried and do not work — do not retry them
+
+Both were attempts to turn this into a code-health tool rather than a portrait. Both were
+measured on express, svelte, vue, jquery, fastapi and slugify, and both failed.
+
+**Hidden coupling as a finding.** The idea: file pairs that cross a top-level directory
+boundary and keep changing together are coupling nobody declared. Measured, that signal is
+almost entirely (a) a test moving with its subject, (b) a generated doc moving with its
+source, (c) release bookkeeping. Filter those three out and **four of the six repos have
+nothing left at all**; the survivors are `Gruntfile.js`/`rollup.config.js` pairs at 12-21%
+confidence. `confidence` and `cross` survive in `analyze.mjs`, but only for what they
+honestly are — a way to rank which lines are worth drawing.
+
+**Single-author knowledge risk.** The idea: among the files the repo keeps returning to,
+which are understood by exactly one person who has since left. Measured: express, svelte
+and jquery have **zero** single-author files in their top 90, vue has 2 and fastapi 6, and
+in every repo the count whose sole author was gone for over a year was **zero**. The
+reason is structural and will not change: the top-90-most-changed files of a mature repo
+*are* its many-hands core. Any risk signal lives in the long tail this deliberately cuts.
 
 Session write-up: `~/Documents/_SESSION-2026-09-23-commit-constellation.md`.
 
