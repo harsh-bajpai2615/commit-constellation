@@ -20,15 +20,16 @@ node warm.mjs                   # 6/6 warmed
 node server.mjs                 # http://localhost:4173
 ```
 
-Type `expressjs/express`, or `sveltejs/svelte`, or a path like `~/cliptrip-backend`.
+Type `expressjs/express`, or `sveltejs/svelte`, or a path like `~/some-local-repo`.
 `?still=1` renders the settled sky in one frame, skipping the reveal — that is how the
 `docs/` shots are regenerated, because a backgrounded tab loses its animation frames and
 photographs as an empty sky.
 
-**The Claude-caption plan is dead: there is no API key.** The $100 of Build Day credits
-were only ever *hedged* ("we're working to get every attendee $100") and never arrived,
-and there is no `ANTHROPIC_API_KEY` on this machine. `lib/read.mjs` writes the caption
-from a template and that is now the shipped behaviour, not a placeholder.
+**The caption is written locally, on purpose.** There is no `ANTHROPIC_API_KEY` in this
+environment, so the plan to have a model write the one-line character sentence was
+dropped. `lib/read.mjs` builds it from the same `traits` object instead, with every clause
+gated on a number from the log — so the sentence can only ever say something the history
+actually supports. That is the shipped behaviour, not a placeholder.
 
 ---
 
@@ -36,7 +37,7 @@ from a template and that is now the shipped behaviour, not a placeholder.
 
 | | |
 |---|---|
-| Local repos | `~/cliptrip-backend`, any absolute path |
+| Local repos | any absolute path, or `~/…` |
 | Remote repos | `owner/name`, or any git URL |
 | Cold clone | express (2,000 commits, 306 authors) in **3.1s** |
 | Warm repo | **~100ms** |
@@ -56,7 +57,7 @@ server.mjs        zero-dep http server + /api/constellation
 warm.mjs          pre-clone repos so nothing clones cold on stage
 lib/repo.mjs      resolve a source to a git dir, run git log
 lib/analyze.mjs   commits -> stars, co-change links, traits
-lib/read.mjs      the one-line caption (swap for Claude, keep as fallback)
+lib/read.mjs      the one-line caption, built from the same traits
 public/sketch.js  seeded spring layout + the drawing
 public/style.css  projector-first: near-black, high contrast, nothing under 15px
 cache/            bare clones (gitignored)
@@ -199,7 +200,6 @@ in every repo the count whose sole author was gone for over a year was **zero**.
 reason is structural and will not change: the top-90-most-changed files of a mature repo
 *are* its many-hands core. Any risk signal lives in the long tail this deliberately cuts.
 
-Session write-up: `~/Documents/_SESSION-2026-09-23-commit-constellation.md`.
 
 ## Demo notes
 

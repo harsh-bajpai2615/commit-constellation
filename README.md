@@ -86,3 +86,11 @@ Cold clone of a 357-commit repo: ~5s. Warm: ~0.2s. `node warm.mjs` pre-clones th
 Built for the Mumbai Claude Build Day, 23 Sep 2026. Internals, and the traps worth not
 stepping in again, are in [`RESUME.md`](RESUME.md); the two-minute demo is in
 [`DEMO.md`](DEMO.md).
+
+## Licence
+
+This project is MIT — see [`LICENSE`](LICENSE).
+
+`public/vendor/p5.min.js` is **p5.js v1.11.2**, © the p5.js contributors, under the
+**LGPL-2.1**, and is *not* covered by that MIT licence. Its full licence text and the
+reason it is vendored are in [`public/vendor/`](public/vendor/).
