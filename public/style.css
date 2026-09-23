@@ -72,7 +72,7 @@ html, body {
   border-radius: 3px;              /* nearly square: an instrument, not an app */
   transition: border-color .35s var(--ease), box-shadow .35s var(--ease);
 }
-#src::placeholder { color: #6c6a60; }
+#src::placeholder { color: var(--muted); }   /* #6c6a60 measured 3.7:1 -- under AA */
 #src:focus {
   outline: none;
   border-color: #3b4560;
@@ -120,12 +120,14 @@ html, body {
   pointer-events: none;
 }
 
+/* Was #5f5d56, which measures 3.0:1 on this ground -- under AA at 11px, and the first
+   thing to disappear on a washed-out projector. */
 #key h2 {
   margin: 0 0 10px;
   font: 11px/1 var(--mono);
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: #5f5d56;
+  color: var(--muted);
 }
 
 #key ul { margin: 0; padding: 0; list-style: none; }
@@ -159,7 +161,7 @@ html, body {
   font: 10px/1 var(--mono);
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: #5f5d56;
+  color: var(--muted);
   pointer-events: none;
 }
 
@@ -180,6 +182,7 @@ html, body {
 
 #intro h1 {
   margin: 0 0 12px;
+  overflow-wrap: anywhere;
   font-size: clamp(30px, 4.6vw, 62px);
   font-weight: 400;
   line-height: 1;
@@ -242,6 +245,8 @@ html, body {
 
 #title {
   margin: 0 0 10px;
+  /* org/repo slugs run long and there is no space in them to break at. */
+  overflow-wrap: anywhere;
   font-family: var(--serif);
   font-size: clamp(30px, 4.6vw, 62px);
   font-weight: 400;              /* the serif carries it; bold would coarsen the engraving */

@@ -8,14 +8,17 @@
 </head>
 <body>
 
-<canvas id="sky"></canvas>
+<!-- The picture carries no information that is not also in the caption and the key, so it
+     is decorative to a screen reader rather than an unlabelled blank. -->
+<canvas id="sky" aria-hidden="true"></canvas>
 
 <header id="chrome">
   <form id="form" autocomplete="off">
     <input id="src" name="src" placeholder="owner/name, a git URL, or a path on this machine" spellcheck="false" autofocus>
     <button type="submit">Plot</button>
   </form>
-  <p id="status"></p>
+  <!-- Errors are only ever shown here, so they have to be announced too. -->
+  <p id="status" role="status" aria-live="polite"></p>
 </header>
 
 <!-- The dial is drawn on the canvas; this names it, because an unlabelled instrument is
