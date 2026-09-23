@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commit Constellation</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<canvas id="sky"></canvas>
+
+<header id="chrome">
+  <form id="form" autocomplete="off">
+    <input id="src" name="src" placeholder="owner/name, a git URL, or a path on this machine" spellcheck="false" autofocus>
+    <button type="submit">Plot</button>
+  </form>
+  <p id="status"></p>
+</header>
+
+<footer id="caption" hidden>
+  <h1 id="title"></h1>
+  <p id="read"></p>
+</footer>
+
+<div id="tooltip" hidden></div>
+
+<script src="/vendor/p5.min.js"></script>
+<script src="/sketch.js"></script>
+</body>
+</html>
