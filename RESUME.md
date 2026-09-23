@@ -11,14 +11,27 @@ Built for the **Mumbai Claude Fable 5.1 Build Day**, 23 Sep 2026 — *Delight* t
 
 ## ⏭ PICK UP HERE
 
-**Done and verified, including the visuals.** Read `DEMO.md` — it has the 2-minute beat,
-the pre-flight checklist and the failure drills.
+**Shipped and public** — <https://github.com/harsh-bajpai2615/commit-constellation>, MIT,
+16 commits, verified by cloning anonymously and running from a clean checkout. Working
+tree clean; all six demo repos green.
 
 ```bash
 cd ~/commit-constellation
 node warm.mjs                   # 6/6 warmed
 node server.mjs                 # http://localhost:4173
 ```
+
+**The one thing never done: the 2-minute demo was never rehearsed out loud.** Everything
+went into the build. `DEMO.md` has the beat, the pre-flight checklist and the failure
+drills — start there, not in the code.
+
+Open, none of it blocking: no Firefox test (not installed); labels cannot be forced on at
+1× zoom; Back does not step through plotted repos; no keyboard pan; no split-screen
+compare — that last one is **deliberate**, because two skies side by side halves each and
+on a projector size is legibility, and the one-click session chips solve the same need.
+
+Two framings that were measured and failed are written up at the bottom of this file —
+read those before proposing either of them again.
 
 Type `expressjs/express`, or `sveltejs/svelte`, or a path like `~/some-local-repo`.
 `?still=1` renders the settled sky in one frame, skipping the reveal — that is how the
