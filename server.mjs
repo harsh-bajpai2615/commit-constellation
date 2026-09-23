@@ -70,9 +70,14 @@ async function api(url, res) {
 
   if (!src) return json(400, { error: 'Pass ?src=owner/name or a path.' })
 
-  if (cache.has(src)) return json(200, cache.get(src))
-
   const started = Date.now()
+
+  // Re-time on the way out. The cached object carries the duration of the *original*
+  // clone, so serving it unchanged makes an instant cache hit report 0.3s on screen --
+  // a number that is simply not true.
+  if (cache.has(src)) {
+    return json(200, { ...cache.get(src), tookMs: Date.now() - started })
+  }
   try {
     const repo = await resolveRepo(src)
     const commits = await gitLog(repo.dir)
