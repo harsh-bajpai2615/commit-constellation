@@ -27,7 +27,11 @@ const TYPES = {
 }
 
 // One in-process cache. A repo shown once during a demo is usually shown again.
+//
+// It expires, because without a TTL a repo analysed once is frozen for the life of the
+// process: push a commit, plot it again, and you get the old sky with no way to tell.
 const cache = new Map()
+const CACHE_TTL = 5 * 60 * 1000
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`)
@@ -75,8 +79,9 @@ async function api(url, res) {
   // Re-time on the way out. The cached object carries the duration of the *original*
   // clone, so serving it unchanged makes an instant cache hit report 0.3s on screen --
   // a number that is simply not true.
-  if (cache.has(src)) {
-    return json(200, { ...cache.get(src), tookMs: Date.now() - started })
+  const hit = cache.get(src)
+  if (hit && started - hit.at < CACHE_TTL) {
+    return json(200, { ...hit.data, tookMs: Date.now() - started })
   }
   try {
     const repo = await resolveRepo(src)
@@ -86,7 +91,7 @@ async function api(url, res) {
     data.origin = repo.origin
     data.tookMs = Date.now() - started
 
-    cache.set(src, data)
+    cache.set(src, { at: Date.now(), data })
     console.log(`  ${src} -> ${data.counts.commits} commits, ${data.stars.length} stars, ${data.tookMs}ms`)
     json(200, data)
   } catch (err) {

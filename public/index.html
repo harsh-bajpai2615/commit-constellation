@@ -19,6 +19,14 @@
   </form>
   <!-- Errors are only ever shown here, so they have to be announced too. -->
   <p id="status" role="status" aria-live="polite"></p>
+
+  <!-- Hovering a star was the only way to find out what it is, which left the whole
+       picture unreachable without a mouse. This is the keyboard way in: it sits next in
+       tab order after Plot, is invisible until focused, and then names itself. -->
+  <div id="skyFocus" tabindex="-1" role="group"
+       aria-label="Star field. Left and right arrows move between files, largest first. Escape leaves.">
+    ← → between files · Esc to leave
+  </div>
 </header>
 
 <!-- The dial is drawn on the canvas; this names it, because an unlabelled instrument is
@@ -52,6 +60,10 @@
 </footer>
 
 <div id="tooltip" hidden></div>
+
+<!-- The tooltip is a positioned div a screen reader has no reason to visit, so the
+     selected star is announced here instead. -->
+<p id="readout" class="sr-only" role="status" aria-live="polite"></p>
 
 <script src="/vendor/p5.min.js"></script>
 <script src="/sketch.js"></script>

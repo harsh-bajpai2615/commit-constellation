@@ -110,6 +110,49 @@ html, body {
 }
 #status.error { color: #e89a86; letter-spacing: .04em; font-size: 13px; }
 
+/* Announced, never shown. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Invisible until focused, then a chip that says what the keys do. Tabbing into a star
+   field with no idea that arrows work is the same as it not working. */
+#skyFocus {
+  position: fixed;
+  top: 132px; left: 26px;
+  z-index: 4;
+  width: 1px; height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  font: 12px/1.4 var(--mono);
+  letter-spacing: .06em;
+}
+
+/* `.is-on` is set from JS, and it is the one that is load-bearing. WebKit does not match
+   :focus while the window is not the key window, so a rule hanging off :focus alone can
+   silently not apply -- the same way the entrance animation silently did not run. The
+   pseudo-class is kept as a belt to that braces. */
+#skyFocus.is-on,
+#skyFocus:focus {
+  width: auto; height: auto;
+  padding: 9px 13px;
+  clip: auto;
+  overflow: visible;
+  color: var(--paper);
+  background: rgba(11, 13, 20, .97);
+  border: 1px solid var(--ember);
+  border-radius: 3px;
+  outline: none;
+}
+
 /* ---------------------------------------------------------------- the key */
 
 #key {

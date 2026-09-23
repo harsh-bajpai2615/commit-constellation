@@ -92,7 +92,35 @@ package.json"*. True, and useless.
 
 `docs/` holds screenshots of the working render (express, svelte, slugify) — compare
 against these after any change to the layout or the palette, because this is the class of
-bug that does not show up in the API response. Regenerate with `?src=...&still=1`.
+bug that does not show up in the API response.
+
+**Regenerate them with headless Chrome**, which needs no window and never steals the
+screen. Chrome is at `~/Desktop/Google Chrome.app`, not `/Applications`, which is why a
+search for a second browser first came up empty:
+
+```bash
+CHROME="$HOME/Desktop/Google Chrome.app/Contents/MacOS/Google Chrome"
+"$CHROME" --headless --disable-gpu --hide-scrollbars --window-size=1470,840 \
+  --screenshot=docs/express.png --virtual-time-budget=9000 \
+  "http://localhost:4173/?src=expressjs/express&still=1"
+```
+
+⚠ Headless Chrome **clamps the viewport to 500px minimum** — `--window-size=340` still
+reports `innerWidth=500` and merely crops the PNG, which looks exactly like a layout
+overflow bug and is not one. Test anything narrower in a real window.
+
+## Keyboard
+
+The picture was mouse-only: hovering a star was the one way to find out what it is. Tab
+past **Plot** reaches the star field, which is invisible until focused and then names its
+own controls. ← → step between files **in commit-count order** (so the first press lands
+on the file the repo returns to most), Home/End jump to the ends, Escape returns to the
+input. The selected star gets the same highlight and tooltip as a hover, and is announced
+through a live region as "path, N commits, M authors, i of n".
+
+⛔ The visible chip hangs off a JS-set `.is-on` class, **not** `:focus` alone — WebKit does
+not match `:focus` while its window is not the key window, so the chip silently would not
+appear. Same family as the animation trap above.
 
 ## The visual system — and why it is not a graph viewer
 

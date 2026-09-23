@@ -25,6 +25,8 @@ node server.mjs
 > stars means those two files keep changing in the same commit.
 
 **0:20 — hover the big blue one.** The tooltip names it and gives commits and authors.
+(No trackpad? Tab past **Plot** into the star field, then ← → walks the files from
+most-changed down — useful if you end up presenting from a clicker.)
 
 > Nobody wrote these lines down. They are not imports. This is just what 2,000 commits of
 > behaviour look like from above.

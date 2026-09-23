@@ -16,6 +16,8 @@ const keyEl = el('key')
 const keyList = el('keyList')
 const dialLabel = el('dialLabel')
 const intro = el('intro')
+const skyFocus = el('skyFocus')
+const readout = el('readout')
 
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -28,7 +30,9 @@ const HUES = [
 
 let state = null   // { nodes, links, legend, data, t0 }
 let hovered = null
-let bg = null      // pre-rendered backdrop, rebuilt per layout
+let bg = null           // pre-rendered backdrop, rebuilt per layout
+let focusIdx = null     // keyboard selection, an index into state.nodes
+let pointerMode = true  // whether the mouse or the keyboard is driving the highlight
 
 const DRAWN_LINKS = 46    // of up to 140 the server sends
 const SPIKE_STARS = 11
@@ -267,6 +271,9 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight)
   if (state) state = { ...state, ...buildLayout(state.data, width, height) }
   refreshBackdrop()
+  // Every star has moved, so a tooltip pinned to the old position is now pointing at
+  // nothing. Re-anchor it rather than leaving it stranded.
+  if (focusIdx !== null) selectStar(focusIdx)
   redraw()
 }
 
@@ -340,7 +347,7 @@ function draw() {
   // colours is DOM, where it can be set in real type instead of canvas fallback glyphs.
   if (!isNarrow()) drawClock(age)
 
-  trackHover(age, drift)
+  if (pointerMode) trackHover(age, drift)
 }
 
 const HOUR_LABEL = [
@@ -506,11 +513,11 @@ function trackHover(age, drift) {
   }
   if (best !== hovered) {
     hovered = best
-    showTooltip(best)
+    showTooltip(best, mouseX, mouseY)
   }
 }
 
-function showTooltip(n) {
+function showTooltip(n, atX, atY) {
   if (!n) { tooltip.hidden = true; return }
   const s = n.star
   tooltip.innerHTML =
@@ -519,9 +526,75 @@ function showTooltip(n) {
     `${s.authors.length} author${s.authors.length === 1 ? '' : 's'}</span>`
   tooltip.hidden = false
   const pad = 14
-  tooltip.style.left = `${Math.min(mouseX + pad, window.innerWidth - tooltip.offsetWidth - 8)}px`
-  tooltip.style.top = `${Math.min(mouseY + pad, window.innerHeight - tooltip.offsetHeight - 8)}px`
+  tooltip.style.left = `${Math.max(8, Math.min(atX + pad, window.innerWidth - tooltip.offsetWidth - 8))}px`
+  tooltip.style.top = `${Math.max(8, Math.min(atY + pad, window.innerHeight - tooltip.offsetHeight - 8))}px`
 }
+
+// ---------------------------------------------------------------- keyboard
+
+// Stars arrive sorted by commit count, so index order is "most-changed first" -- which is
+// a more useful reading order than anything spatial, and it means the first press lands on
+// the file the repo returns to most.
+function selectStar(i) {
+  if (!state || !state.nodes.length) return
+  const count = state.nodes.length
+  focusIdx = ((i % count) + count) % count
+  pointerMode = false
+
+  const n = state.nodes[focusIdx]
+  hovered = n
+  const age = (millis() - state.t0) / 1000
+  const drift = STILL ? 0 : 1
+  showTooltip(n, skyX() + px(n, age, drift), skyY() + py(n, age, drift))
+
+  const s = n.star
+  readout.textContent =
+    `${s.path}. ${s.commits} commit${s.commits === 1 ? '' : 's'}, ` +
+    `${s.authors.length} author${s.authors.length === 1 ? '' : 's'}. ` +
+    `${focusIdx + 1} of ${count}.`
+  redraw()
+}
+
+function clearSelection() {
+  focusIdx = null
+  hovered = null
+  tooltip.hidden = true
+  readout.textContent = ''
+}
+
+skyFocus.addEventListener('focus', () => {
+  skyFocus.classList.add('is-on')
+  if (state && focusIdx === null) selectStar(0)
+})
+
+skyFocus.addEventListener('blur', () => {
+  skyFocus.classList.remove('is-on')
+  // Leaving the field should not leave a star lit with no way to move it.
+  if (focusIdx !== null) clearSelection()
+})
+
+skyFocus.addEventListener('keydown', (e) => {
+  if (!state) return
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+  if (step) {
+    e.preventDefault()
+    selectStar((focusIdx ?? -1) + step)
+  } else if (e.key === 'Home') {
+    e.preventDefault()
+    selectStar(0)
+  } else if (e.key === 'End') {
+    e.preventDefault()
+    selectStar(state.nodes.length - 1)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    clearSelection()
+    srcInput.focus()
+  }
+})
+
+// Any real pointer movement hands control back to the mouse. Without this the per-frame
+// hover test would clear a keyboard selection on the very next frame.
+window.addEventListener('mousemove', () => { pointerMode = true }, { passive: true })
 
 function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -548,8 +621,20 @@ async function plot(src) {
   const button = form.querySelector('button')
   button.disabled = true
   statusEl.className = ''
-  statusEl.textContent = 'READING HISTORY…'
   caption.hidden = true
+
+  // A cold clone takes about five seconds and the status used to sit perfectly still for
+  // all of them, which is indistinguishable from being hung. Counting is honest -- it
+  // claims no progress it cannot measure -- and after three seconds it explains itself,
+  // because by then this is a first-time clone rather than a cached read.
+  const startedAt = Date.now()
+  statusEl.textContent = 'READING HISTORY…'
+  const ticking = setInterval(() => {
+    const secs = (Date.now() - startedAt) / 1000
+    statusEl.textContent = secs < 3
+      ? `READING HISTORY… ${secs.toFixed(1)}s`
+      : `CLONING… ${secs.toFixed(1)}s · FIRST TIME IS SLOWEST`
+  }, 100)
 
   try {
     const res = await fetch(`/api/constellation?src=${encodeURIComponent(src)}`)
@@ -574,6 +659,11 @@ async function plot(src) {
     intro.hidden = true
     caption.hidden = false
 
+    // There is something to explore now, so the field joins the tab order.
+    clearSelection()
+    pointerMode = true
+    skyFocus.tabIndex = 0
+
     // Keep the address bar honest, so a reload redraws the same sky and the link can be
     // handed to someone else. replaceState rather than pushState: plotting four repos in a
     // demo should not bury the page under four history entries.
@@ -587,6 +677,7 @@ async function plot(src) {
     statusEl.textContent = err.message
     if (!state) redraw()
   } finally {
+    clearInterval(ticking)
     button.disabled = false
   }
 }
