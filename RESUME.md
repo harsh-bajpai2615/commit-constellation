@@ -93,6 +93,12 @@ release touches them, so they link to everything and become the biggest star in 
 express and a 78-commit utility library both captioned *"everything circling
 package.json"*. True, and useless.
 
+`docs/` holds screenshots of the working render (express, svelte, slugify) — compare
+against these after any change to the layout or the palette, because this is the class of
+bug that does not show up in the API response.
+
+Session write-up: `~/Documents/_SESSION-2026-09-23-commit-constellation.md`.
+
 ## Demo notes
 
 - `?src=owner/name` in the URL plots on load — park a known-good repo in a second tab.
